@@ -1,0 +1,10 @@
+.audio-container {
+    height: 100%;
+    width: 100%;
+
+    .button-container {
+        width: 100%;
+        display: flex;
+    }
+}
+
