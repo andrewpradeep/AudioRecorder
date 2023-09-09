@@ -1,11 +1,20 @@
 const AudioRecorder = (function () {
     const states = {
         started: "started",
-        stoppeed: "stopped",
+        stopped: "stopped",
         paused: "paused",
     };
 
-    const currentState = states.stoppeed;
+    let currentState = states.stopped;
+    let AudioRecorderInstance = null;
+    let AudioContextInstance = null;
+    let AudioSourceNode = null;
+    let AudioAnalyserNode = null;
+    let AudioDestinationNode = null;
+
+    let AudioArrayChunk = [];
+    let MediaRecorderInstance = null;
+    let MediaStreamInstance = null;
 
     const setUpUI = () => {
         const template = `<div class="audio-container" >
@@ -19,13 +28,66 @@ const AudioRecorder = (function () {
         <button id="pause_button">pause</button>
         <button id="stop_button">stop</button>
         <div>
+
+        <div id="audioContainer"></div>
     </div>`;
 
         const rootElement = document.querySelector("#root");
         rootElement.insertAdjacentHTML("beforeend", template);
-
-        setUpEventListener();
+        setMediaRecorder();
     };
+
+    const setMediaRecorder = async () => {
+        if (navigator.mediaDevices) {
+            try {
+                MediaStreamInstance = await navigator.mediaDevices.getUserMedia(
+                    {
+                        audio: true,
+                    }
+                );
+                AudioContextInstance = new AudioContext();
+                AudioSourceNode =
+                    AudioContextInstance.createMediaStreamSource(
+                        MediaStreamInstance
+                    );
+                AudioAnalyserNode = AudioContextInstance.createAnalyser();
+                AudioSourceNode.connect(AudioAnalyserNode);
+                AudioDestinationNode =
+                    AudioContextInstance.createMediaStreamDestination();
+
+                AudioAnalyserNode.connect(AudioDestinationNode);
+
+                const options = {
+                    audioBitsPerSecond: 256000,
+                    videoBitsPerSecond: 2500000,
+                    bitsPerSecond: 2628000,
+                    mimeType: "audio/webm;codecs=opus",
+                };
+                MediaRecorderInstance = new MediaRecorder(
+                    MediaStreamInstance,
+                    options
+                );
+                MediaRecorderInstance.ondataavailable = (e) => {
+                    AudioArrayChunk.push(e.data);
+
+                    if (currentState === states.stopped) {
+                        MediaStreamInstance.getTracks().forEach((track) =>
+                            track.stop()
+                        );
+                        setAudioElement();
+                    }
+                };
+
+                setUpEventListener();
+            } catch (error) {
+                console.error(error);
+            }
+        } else {
+            showMediaRecorderNotSupported();
+        }
+    };
+
+    const showMediaRecorderNotSupported = () => {};
 
     const setUpEventListener = () => {
         const startButton = document.querySelector("#start_button");
@@ -38,18 +100,41 @@ const AudioRecorder = (function () {
     };
 
     const startHandler = () => {
-        if (currentState !== states.started) {
+        if (currentState === states.stopped) {
+            MediaRecorderInstance.start();
+            currentState = states.started;
+        } else if (currentState === states.paused) {
+            MediaRecorderInstance.resume();
+            currentState = states.started;
         }
     };
 
     const pauseHandler = () => {
         if (currentState === states.started) {
+            MediaRecorderInstance.pause();
+            currentState = states.paused;
         }
     };
 
     const stopHandler = () => {
         if (currentState === states.started) {
+            MediaRecorderInstance.stop();
+            currentState = states.stopped;
         }
+    };
+
+    const setAudioElement = () => {
+        const audioElement = document.createElement("audio");
+        const audioContainer = document.getElementById("audioContainer");
+        audioElement.setAttribute("controls", "");
+        const blob = new Blob(AudioArrayChunk, {
+            type: "audio/webm; codecs=opus",
+        });
+        AudioArrayChunk = [];
+        audioElement.controls = true;
+        const audioURL = URL.createObjectURL(blob);
+        audioElement.src = audioURL;
+        audioContainer.append(audioElement);
     };
 
     const init = () => {
