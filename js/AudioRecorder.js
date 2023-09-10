@@ -126,6 +126,9 @@ const AudioRecorder = (function () {
             } else if (currentState === states.paused) {
                 MediaRecorderInstance.resume();
                 currentState = states.started;
+                waveTriggerInterval = setInterval(() => {
+                    requestAnimationFrame(drawWave);
+                }, 100);
             }
         } catch (error) {
             console.error(error);
@@ -136,11 +139,14 @@ const AudioRecorder = (function () {
         if (currentState === states.started) {
             MediaRecorderInstance.pause();
             currentState = states.paused;
+            if (waveTriggerInterval) {
+                clearInterval(waveTriggerInterval);
+            }
         }
     };
 
     const stopHandler = () => {
-        if (currentState === states.started) {
+        if (currentState !== states.stopped) {
             MediaRecorderInstance.stop();
             currentState = states.stopped;
         }
